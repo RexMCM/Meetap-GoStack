@@ -5,6 +5,7 @@ import User from '../models/User';
 
 class MeetupController {
   async store(req, res) {
+    console.log(req.body);
     // check for past dates
     const reqDate = startOfHour(parseISO(req.body.date));
     if (isBefore(reqDate, new Date())) {

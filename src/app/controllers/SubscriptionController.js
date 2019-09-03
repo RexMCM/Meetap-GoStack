@@ -1,12 +1,37 @@
 import { isBefore, startOfHour, parseISO } from 'date-fns';
+import { Op } from 'sequelize';
+import Mail from '../../lib/Mail';
 import Subscription from '../models/Subscription';
 import User from '../models/User';
 import Meetup from '../models/Meetup';
+import File from '../models/File';
 
 class SubscriptionController {
+  async index(req, res) {
+    const { id } = await User.findByPk(req.userId);
+
+    const meetups = await Subscription.findAll({
+      where: { user_id: id },
+      include: [
+        {
+          model: Meetup,
+          where: {
+            date: { [Op.gt]: new Date() },
+          },
+          attributes: ['title', 'description', 'location', 'date'],
+        },
+      ],
+      attributes: {
+        exclude: ['user_id', 'meetup_id', 'updated_at', 'created_at'],
+      },
+      order: [[Meetup, 'date']],
+    });
+    return res.json(meetups);
+  }
+
   async store(req, res) {
     const { meetup_id } = req.body;
-    const { id } = await User.findByPk(req.userId);
+    const { id, name } = await User.findByPk(req.userId);
     const meetup = await Meetup.findByPk(meetup_id, {
       include: [User],
     });
@@ -54,6 +79,16 @@ class SubscriptionController {
     }
     const newSubscription = await Subscription.create(req.body);
 
+    await Mail.sendMail({
+      to: `${meetup.User.name} <${meetup.User.email}>`,
+      subject: 'New Subscription',
+      template: 'alert',
+      context: {
+        user_id: meetup.User.name,
+        user: name,
+        meetup: meetup.title,
+      },
+    });
     return res.json(newSubscription);
   }
 }
